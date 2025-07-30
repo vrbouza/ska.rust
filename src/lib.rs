@@ -502,6 +502,8 @@ pub fn main() {
                 log::info!("k={}: using 64-bit representation", *k);
                 let merged_dict = build_and_merge::<u64>(&input_files, *k, rc, &quality, *threads);
 
+                println!("{}", merged_dict.ksize());
+
                 // Save
                 save_skf(&merged_dict, output);
             } else {

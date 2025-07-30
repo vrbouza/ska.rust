@@ -34,6 +34,38 @@ use crate::ska_dict::bloom_filter::KmerFilter;
 
 pub mod nthash;
 
+
+use std::collections::VecDeque;
+#[derive(Debug)]
+pub struct AscMinima {
+    /// Ascending minima FIFO queue
+    mfifo : VecDeque<(u64, usize)>,
+    hvec  : Vec<u64>,
+    ng    : usize,
+}
+
+impl AscMinima {
+    /// Quality score is at least minimum.
+    #[inline(always)]
+    pub fn new(k: usize, g: usize) -> Self {
+        let mut tmphvec = Vec::with_capacity(k - g - 1);
+        for _ in 0..(k-g-1) {tmphvec.push(0)};
+        Self {
+            mfifo : VecDeque::<(u64, usize)>::with_capacity(k - g - 1),
+//             hvec  : Vec::with_capacity(k - g - 1),
+            hvec  : tmphvec,
+            ng : 0,
+        }
+    }
+
+//     pub fn clear(mut self) {
+//         // We only clear the asc_minima FIFO queue, we don't care about the other.
+//         self.asc_minima.clear();
+//     }
+}
+
+
+
 /// Holds the split-kmer dictionary, and basic information such as k-mer size.
 #[derive(Debug, Clone, Default)]
 pub struct SkaDict<IntT> {
@@ -49,6 +81,8 @@ pub struct SkaDict<IntT> {
     split_kmers: HashMap<IntT, u8>,
     /// A bloom filter for counting from fastq files
     kmer_filter: KmerFilter,
+    /// G-mer size
+    g: usize,                   //  TEMP
 }
 
 impl<IntT> SkaDict<IntT>
@@ -100,6 +134,10 @@ where
     fn add_file_kmers(&mut self, filename: &str, is_reads: bool, qual: &QualOpts) {
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
+
+
+        let mut asc_minima = AscMinima::new(self.k, self.g);
+
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA/Q record");
             let kmer_opt = SplitKmer::new(
@@ -111,11 +149,14 @@ where
                 qual.min_qual,
                 qual.qual_filter,
                 is_reads,
+                self.g,
+                &mut asc_minima,
             );
+//             println!("{}", is_reads);
             if let Some(mut kmer_it) = kmer_opt {
-                if !is_reads
+                if !is_reads                                                        // FIRST ONE
                     || (kmer_it.middle_base_qual()
-                        && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
+                        && Ordering::is_eq(self.kmer_filter.filter(&mut kmer_it)))
                 {
                     let (kmer, base, _rc) = kmer_it.get_curr_kmer();
                     if kmer_it.self_palindrome() {
@@ -124,10 +165,10 @@ where
                         self.add_to_dict(kmer, base);
                     }
                 }
-                while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
+                while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {       // REMAINING
                     if !is_reads
                         || (kmer_it.middle_base_qual()
-                            && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
+                            && Ordering::is_eq(self.kmer_filter.filter(&mut kmer_it)))
                     {
                         if kmer_it.self_palindrome() {
                             self.add_palindrome_to_dict(kmer, base);
@@ -189,8 +230,14 @@ where
         rc: bool,
         qual: &QualOpts,
     ) -> Self {
+        ////// TEMP
+        let g : usize = 5;
+
         if !(5..=63).contains(&k) || k % 2 == 0 {
             panic!("Invalid k-mer length");
+        }
+        if g > (k - 1)/2 {
+            panic!("Invalid g-mer length");
         }
 
         let mut sk_dict = Self {
@@ -200,6 +247,7 @@ where
             name: name.to_string(),
             split_kmers: HashMap::default(),
             kmer_filter: KmerFilter::new(qual.min_count),
+            g, // TEMP
         };
 
         // Check if we're working with reads, and initalise the CM filter if so
@@ -220,10 +268,13 @@ where
         if let Some(second_filename) = files.1 {
             sk_dict.add_file_kmers(second_filename, is_reads, qual);
         }
-
         if sk_dict.ksize() == 0 {
             panic!("{} has no valid sequence", files.0);
         }
+
+//         println!("{}%", sk_dict.getfpratio() * (100 as f64));
+
+
         sk_dict
     }
 
@@ -231,6 +282,11 @@ where
     pub fn kmer_len(&self) -> usize {
         self.k
     }
+
+    /// TEMP
+//     pub fn getfpratio(&self) -> f64 {
+//         self.kmer_filter.getfpratio()
+//     }
 
     /// Whether reverse-complement was counted
     pub fn rc(&self) -> bool {

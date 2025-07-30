@@ -64,6 +64,7 @@ use crate::ska_ref::idx_check::IdxCheck;
 use crate::merge_ska_dict::MergeSkaDict;
 use crate::ska_dict::bit_encoding::{UInt, RC_IUPAC};
 use crate::ska_dict::split_kmer::SplitKmer;
+use crate::ska_dict::AscMinima;
 
 /// A split k-mer in the reference sequence encapsulated with positional data.
 #[derive(Debug, Clone)]
@@ -184,6 +185,9 @@ where
             chrom_names.push(chrom_name.to_string());
             split_kmer_pos.reserve(seqrec.num_bases());
 
+            let g : usize = 5; // TEMP
+            let mut asc_minima = AscMinima::new(k, g); //TEMP
+
             let kmer_opt = SplitKmer::new(
                 seqrec.seq(),
                 seqrec.num_bases(),
@@ -193,6 +197,8 @@ where
                 0,
                 QualFilter::NoFilter,
                 false,
+                g,
+                &mut asc_minima
             );
             if let Some(mut kmer_it) = kmer_opt {
                 let (kmer, base, rc) = kmer_it.get_curr_kmer();

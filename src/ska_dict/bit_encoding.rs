@@ -87,6 +87,7 @@ pub trait UInt<'a>:
     + Unsigned
     + std::fmt::Display
     + std::fmt::Debug
+    + std::fmt::Binary
     + std::marker::Send
     + std::marker::Sync
     + std::hash::Hash

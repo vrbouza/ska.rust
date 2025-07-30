@@ -32,6 +32,9 @@ const MIN_FREQ: u32 = 50;
 const INIT_W0: f64 = 0.8f64;
 const INIT_C: f64 = 20.0f64;
 
+
+use crate::ska_dict::AscMinima;
+
 /// K-mer counts and a coverage model for a single sample, using a pair of FASTQ files as input
 ///
 /// Call [`CoverageHistogram::new()`] to count k-mers, then [`CoverageHistogram::fit_histogram()`]
@@ -106,6 +109,8 @@ where
                 .unwrap_or_else(|_| panic!("Invalid path/file: {fastx_file}"));
             while let Some(record) = reader.next() {
                 let seqrec = record.expect("Invalid FASTA/Q record");
+                let g : usize = 5; // TEMP
+                let mut asc_minima = AscMinima::new(cov_counts.k, g); //TEMP
                 let kmer_opt = SplitKmer::new(
                     seqrec.seq(),
                     seqrec.num_bases(),
@@ -115,6 +120,8 @@ where
                     0,
                     QualFilter::NoFilter,
                     false,
+                    g, //// TEMP
+                    &mut asc_minima, //// TEMP
                 );
                 if let Some(mut kmer_it) = kmer_opt {
                     let (kmer, _base, _rc) = kmer_it.get_curr_kmer();
