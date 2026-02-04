@@ -17,6 +17,8 @@ pub struct SkaAlign<IntT> {
     queries_ska: Vec<SkaDict<IntT>>,
     /// k-value being used
     k: usize,
+    /// Use canonical k-mers or not
+    rc: bool,
 }
 
 impl<IntT> SkaAlign<IntT>
@@ -25,10 +27,11 @@ where
 {
     #[cfg(target_arch = "wasm32")]
     /// Constructor of a SkaAlign struct
-    pub fn new(k: usize) -> Self {
+    pub fn new(k: usize, rc: bool) -> Self {
         Self {
             queries_ska: Vec::new(),
             k,
+            rc,
         }
     }
 
@@ -39,6 +42,9 @@ where
         file1: &web_sys::File,
         file2: Option<&web_sys::File>,
         proportions_reads: Option<f64>,
+        min_count: u16,
+        min_qual: u8,
+        qual_filter: QualFilter,
         name: &str,
         idx: usize,
     ) {
@@ -47,12 +53,11 @@ where
             idx,
             (file1, file2),
             name,
-            // if file2.is_some() {true} else {false},
-            true, // TEMP TODO: made true by default, change when web can be edited again and add a box that asks what files will be submitted
+            self.rc,
             &QualOpts {
-                min_count: 1,
-                min_qual: 0,
-                qual_filter: QualFilter::NoFilter,
+                min_count,
+                min_qual,
+                qual_filter,
             },
             proportions_reads,
         ));
