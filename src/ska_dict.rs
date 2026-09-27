@@ -100,6 +100,8 @@ where
     fn add_file_kmers(&mut self, filename: &str, is_reads: bool, qual: &QualOpts) {
         let mut reader =
             parse_fastx_file(filename).unwrap_or_else(|_| panic!("Invalid path/file: {filename}"));
+        let mut counter = 0;
+        let mut countergood = 0;
         while let Some(record) = reader.next() {
             let seqrec = record.expect("Invalid FASTA/Q record");
             let kmer_opt = SplitKmer::new(
@@ -113,10 +115,12 @@ where
                 is_reads,
             );
             if let Some(mut kmer_it) = kmer_opt {
+                counter += 1;
                 if !is_reads
                     || (kmer_it.middle_base_qual()
                         && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
                 {
+                    countergood += 1;
                     let (kmer, base, _rc) = kmer_it.get_curr_kmer();
                     if kmer_it.self_palindrome() {
                         self.add_palindrome_to_dict(kmer, base);
@@ -125,10 +129,12 @@ where
                     }
                 }
                 while let Some((kmer, base, _rc)) = kmer_it.get_next_kmer() {
+                    counter += 1;
                     if !is_reads
                         || (kmer_it.middle_base_qual()
                             && Ordering::is_eq(self.kmer_filter.filter(&kmer_it)))
                     {
+                        countergood += 1;
                         if kmer_it.self_palindrome() {
                             self.add_palindrome_to_dict(kmer, base);
                         } else {
@@ -138,6 +144,10 @@ where
                 }
             }
         }
+        println!("Processed kmers: {}",         counter);
+        println!("Good kmers: {}",         countergood);
+        println!("Entries in the filter: {}",   self.kmer_filter.counts.len());
+        println!("Entries in the skadict: {}",  self.split_kmers.len());
     }
 
     /// Build a split-kmer dictionary from input fastx file(s)

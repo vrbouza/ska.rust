@@ -8,6 +8,8 @@ use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 
 use hashbrown::HashMap;
+// use nohash_hasher::NoHashHasher;                            // TEMP
+// use std::{collections::HashMap, hash::BuildHasherDefault};  // TEMP
 
 use super::bit_encoding::UInt;
 use super::split_kmer::SplitKmer;
@@ -38,7 +40,8 @@ pub struct KmerFilter {
     /// Buffer for the bloom filter
     buffer: Vec<u64>,
     /// Table of counts
-    counts: HashMap<u64, u16>,
+    pub counts: HashMap<u64, u16>,
+//     counts: HashMap::<u64, u16, BuildHasherDefault<NoHashHasher<u64>>>,
     /// Minimum count to pass filter
     min_count: u16,
 }
@@ -70,19 +73,39 @@ impl KmerFilter {
     /// Generate a location in the buffer from the hash
     #[inline(always)]
     fn location(key: u64, range: u64) -> usize {
-        Self::reduce(Self::cheap_mix(key), range) as usize
+//         Self::reduce(Self::cheap_mix(key), range) as usize
+        Self::reduce(key, range) as usize
     }
 
     /// Check if in the bloom filter, add if not. Returns whether passed filter
+//     fn bloom_add_and_check(&mut self, key: u64) -> bool {
+//         let f_print = Self::fingerprint(key);
+//         let buf_val = self.buffer[Self::location(key, self.buf_size)].borrow_mut();
+//         if *buf_val & f_print == f_print {
+//             true
+//         } else {
+//             *buf_val |= f_print;
+//             false
+//         }
+//     }
+
     fn bloom_add_and_check(&mut self, key: u64) -> bool {
-        let f_print = Self::fingerprint(key);
-        let buf_val = self.buffer[Self::location(key, self.buf_size)].borrow_mut();
-        if *buf_val & f_print == f_print {
-            true
-        } else {
-            *buf_val |= f_print;
-            false
+        let f_print  = Self::fingerprint(key);
+        let buf_val  = self.buffer[Self::location(key,                  self.buf_size)];
+        let buf_val2 = self.buffer[Self::location(Self::cheap_mix(key), self.buf_size)];
+
+
+        if buf_val & f_print != f_print {
+            if buf_val2 & f_print != f_print {
+                if buf_val.count_ones() < buf_val2.count_ones() {
+                    self.buffer[Self::location(key,                  self.buf_size)] |= f_print;
+                } else {
+                    self.buffer[Self::location(Self::cheap_mix(key), self.buf_size)] |= f_print;
+                }
+                return false
+            }
         }
+        true
     }
 
     /// Creates a new filter with given threshold
@@ -98,6 +121,7 @@ impl KmerFilter {
             buf_size,
             buffer: Vec::new(),
             counts: HashMap::new(),
+//             counts: HashMap::with_hasher(BuildHasherDefault::default()),
             min_count,
         }
     }
@@ -130,8 +154,10 @@ impl KmerFilter {
             // Bloom filter then hash table
             _ => {
                 let kmer_hash = kmer.get_hash();
-                if self.bloom_add_and_check(kmer_hash) {
-                    let mut count: u16 = 2;
+//                 if self.bloom_add_and_check(kmer_hash) {
+                if true {
+                    let mut count: u16 = 1;
+//                     let mut count: u16 = 2;
                     self.counts
                         .entry(kmer_hash)
                         .and_modify(|curr_cnt| {
